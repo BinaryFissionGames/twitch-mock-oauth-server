@@ -1,0 +1,37 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./database.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Client {
+    clientId String @id
+    clientSecretHash String // This is the HASH of the secret, not the secret itself. This is important, since we do not store the secret itself anywhere, for security reasons
+    tokens AuthToken[]
+}
+
+model AuthUser {
+    id Int @id @default(autoincrement())
+    userName String @unique
+    sessionId String? @unique
+    tokens AuthToken[]
+}
+
+model AuthToken {
+    id Int @id @default(autoincrement())
+    token String
+    refreshToken String
+    issuedClient Client @relation(fields: [issuedClientId], references: [clientId])
+    issuedClientId String
+    issuedUser AuthUser @relation(fields: [issuedUserId], references: [id])
+    issuedUserId Int
+    code String
+    expiry DateTime
+    scope String
+}

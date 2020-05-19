@@ -1,0 +1,30 @@
+{
+  "name": "twitch-mock-oauth-server",
+  "version": "0.1.0",
+  "description": "Quick and dirty mock oauth twitch server for testing applications",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "Twitch",
+    "OAuth",
+    "test"
+  ],
+  "author": "Brandon Johnson <BinaryFissionGames@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^2.0.0-beta.5",
+    "@types/cookie-parser": "^1.4.2",
+    "@types/express": "^4.17.6",
+    "@types/uuid": "^7.0.3",
+    "cookie-parser": "^1.4.5",
+    "express": "^4.17.1",
+    "uuid": "^8.0.0"
+  },
+  "devDependencies": {
+    "@prisma/cli": "^2.0.0-beta.5"
+  }
+}
