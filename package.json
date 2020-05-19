@@ -13,6 +13,8 @@
     "OAuth",
     "test"
   ],
+  "repository": "https://github.com/Denu8thell/twitch-mock-oauth-server.git",
+  "homepage": "https://github.com/Denu8thell/twitch-mock-oauth-server",
   "author": "Brandon Johnson <BinaryFissionGames@gmail.com>",
   "license": "MIT",
   "dependencies": {
