@@ -5,9 +5,10 @@ import {v4 as uuidv4} from 'uuid';
 import * as cookieParser from 'cookie-parser'
 import * as crypto from 'crypto'
 import {PrismaClient, AuthUser, AuthToken, Client} from '@prisma/client'
-import {Express} from "express";
+import {Express, NextFunction} from "express";
 import * as http from 'http';
 import * as createHttpError from "http-errors";
+
 const prisma = new PrismaClient({
     datasources: {
         twitch_mock_oauth_server_ds: 'file:./twitch_mock_oauth_server_db.db' // need to specify this here.. I think? Need to look more into how this interacts with multiple datasources
@@ -93,6 +94,7 @@ async function generateToken(user: AuthUser, clientId: string, scope: string): P
 type MockServerOptionsCommon = {
     token_url: string,
     authorize_url: string,
+    logErrors?: boolean
 }
 
 type MockServerOptionsExpressApp = {
@@ -208,7 +210,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             } else {
                 return next(createHttpError(400, `Bad grant type ${url.searchParams.get('grant_type')}`));
             }
-        }catch (e) {
+        } catch (e) {
             next(e);
         }
     });
@@ -231,10 +233,10 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 return next(createHttpError(400, `No user associated to session ${sessId}`));
             }
 
-            assert.ok(!!url.searchParams.get('client_id'));
-            assert.ok(!!url.searchParams.get('redirect_uri'));
-            assert.ok(!!url.searchParams.get('response_type'));
-            assert.ok(!!url.searchParams.get('scope'));
+            assert.ok(!!url.searchParams.get('client_id'), createHttpError(400, 'Missing client_id'));
+            assert.ok(!!url.searchParams.get('redirect_uri'), createHttpError(400, 'Missing redirect_uri'));
+            assert.ok(!!url.searchParams.get('response_type'), createHttpError(400, 'Missing response_type'));
+            assert.ok(!!url.searchParams.get('scope'), createHttpError(400, 'Missing scope'));
 
             let token = await generateToken(user, decodeURIComponent(<string>url.searchParams.get('client_id')), decodeURIComponent(<string>url.searchParams.get('scope')));
 
@@ -261,7 +263,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             let user = await addOrGetUser(req.params.username);
             res.json(user);
             res.end();
-        }catch (e) {
+        } catch (e) {
             next(e);
         }
     });
@@ -278,9 +280,30 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
             await addClient(req.params.clientId, req.params.clientSecret);
             res.end();
-        }catch (e) {
+        } catch (e) {
             next(e);
         }
+    });
+
+    app.use(function (error: Error, req: express.Request, res: express.Response, next: NextFunction) {
+        if (res.headersSent) {
+            return next(error);
+        }
+
+        if (config.logErrors) {
+            console.error(error);
+        }
+        if ((error as createHttpError.HttpError).statusCode) {
+            res.status((error as createHttpError.HttpError).statusCode);
+        } else {
+            res.status(500);
+        }
+
+        res.json({
+            status: 'error',
+            message: error.message
+        });
+        res.end();
     });
 
     if ((config as MockServerOptionsPort).port) {
