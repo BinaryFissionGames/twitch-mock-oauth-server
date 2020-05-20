@@ -66,29 +66,34 @@ async function generateToken(user: AuthUser, clientId: string, scope: string): P
         }
     });
 
-    return prisma.authToken.upsert({
-        where: tokens && tokens.length >= 1 ? tokens[0] : {},
-        create: {
-            token: uuidv4(),
-            refreshToken: uuidv4(),
-            issuedClient: {
-                connect: client
-            },
-            issuedUser: {
-                connect: user
-            },
-            code: uuidv4(),
-            expiry: new Date(Date.now() + 3600 * 1000),
-            scope: scope
-        },
-        update: {
-            token: uuidv4(),
-            refreshToken: uuidv4(),
-            code: uuidv4(),
-            expiry: new Date(Date.now() + 3600 * 1000),
-            scope: scope
-        }
-    });
+    if (tokens && tokens.length >= 1) {
+        return prisma.authToken.create({
+            data: {
+                token: uuidv4(),
+                refreshToken: uuidv4(),
+                issuedClient: {
+                    connect: client
+                },
+                issuedUser: {
+                    connect: user
+                },
+                code: uuidv4(),
+                expiry: new Date(Date.now() + 3600 * 1000),
+                scope: scope
+            }
+        })
+    } else {
+        return prisma.authToken.update({
+            where: tokens[0],
+            data: {
+                token: uuidv4(),
+                refreshToken: uuidv4(),
+                code: uuidv4(),
+                expiry: new Date(Date.now() + 3600 * 1000),
+                scope: scope
+            }
+        });
+    }
 }
 
 type MockServerOptionsCommon = {
@@ -242,7 +247,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             if (url.searchParams.get('scope')) {
                 scopes = (decodeURIComponent(<string>url.searchParams.get('scope')).trim() === '') ? [] : decodeURIComponent(<string>url.searchParams.get('scope')).split(' ');
             }
-            
+
             //Always redirect; Typically the user would click a button here, but this is meant to be automated; So we assume the user presses yet
             //TODO: Possibly reject in some cases? I think twitch just redirects back to the original URL, but i'd need to confirm this behaviour
             res.redirect(307, `${decodeURIComponent(<string>url.searchParams.get('redirect_uri'))}` +
