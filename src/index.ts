@@ -7,14 +7,12 @@ import * as crypto from 'crypto'
 import {PrismaClient, AuthUser, AuthToken, Client} from '@prisma/client'
 import {Express} from "express";
 import * as http from 'http';
-
+import * as createHttpError from "http-errors";
 const prisma = new PrismaClient({
     datasources: {
         twitch_mock_oauth_server_ds: 'file:./twitch_mock_oauth_server_db.db' // need to specify this here.. I think? Need to look more into how this interacts with multiple datasources
     }
 });
-
-//TODO integrate http-errors
 
 async function addClient(clientId: string, clientSecret: string): Promise<Client> {
     return await prisma.client.create({
@@ -54,7 +52,7 @@ async function generateToken(user: AuthUser, clientId: string, scope: string): P
     });
 
     if (client === null) {
-        throw new Error(`Cannot find client with id ${clientId}`);
+        throw createHttpError(400, `Cannot find client with id ${clientId}`);
     }
 
     let tokens = await prisma.authToken.findMany({
@@ -127,11 +125,11 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
             if (req.body.grant_type === 'authorization_code') {
                 //Asking for auth token w/ code
-                assert.ok(!!req.body.client_id);
-                assert.ok(!!req.body.client_secret);
-                assert.ok(!!req.body.code);
-                assert.ok(!!req.body.redirect_uri);
-                assert.ok(!!req.body.scope);
+                assert.ok(!!req.body.client_id, createHttpError(400, 'Missing client_id'));
+                assert.ok(!!req.body.client_secret, createHttpError(400, 'Missing client_secret'));
+                assert.ok(!!req.body.code, createHttpError(400, 'Missing code'));
+                assert.ok(!!req.body.redirect_uri, createHttpError(400, 'Missing redirect_uri'));
+                assert.ok(!!req.body.scope, createHttpError(400, 'Missing scope'));
                 //TODO: Verify code, send back token
                 let token = await prisma.authToken.findMany({
                     where: {
@@ -144,7 +142,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 });
 
                 if (!token || token.length < 1) {
-                    throw new Error("No token associated with the client/secret/code combination.");
+                    return next(createHttpError(400, "No token associated with the client/secret/code combination."));
                 }
 
                 res.json({
@@ -159,9 +157,9 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
             } else if (req.body.grant_type === 'refresh_token') {
                 //Asking for oauth token w/ refresh token
-                assert.ok(!!req.body.client_id);
-                assert.ok(!!req.body.client_secret);
-                assert.ok(!!req.body.refresh_token);
+                assert.ok(!!req.body.client_id, createHttpError(400, 'Missing client_id'));
+                assert.ok(!!req.body.client_secret, createHttpError(400, 'Missing client_secret'));
+                assert.ok(!!req.body.refresh_token, createHttpError(400, 'Missing refresh_token'));
                 //TODO: Verify refresh token, send back new auth token / refresh token pair
                 let tokens = await prisma.authToken.findMany({
                     where: {
@@ -177,7 +175,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 });
 
                 if (!tokens || tokens.length < 1) {
-                    throw new Error("No token associated with the client/secret/refresh token combination.");
+                    return next(createHttpError(400, "No token associated with the client/secret/refresh token combination."));
                 }
 
                 let requestedScopes: string[];
@@ -191,7 +189,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
                 requestedScopes.forEach((val) => {
                     if (!oldScopes.includes(val)) {
-                        throw new Error(`Requested scope is greater than the original scopes! (${val} was not originally requested)`);
+                        return next(createHttpError(400, `Requested scope is greater than the original scopes! (${val} was not originally requested)`));
                     }
                 });
 
@@ -208,7 +206,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 res.end();
 
             } else {
-                throw new Error(`Bad grant type ${url.searchParams.get('grant_type')}`);
+                return next(createHttpError(400, `Bad grant type ${url.searchParams.get('grant_type')}`));
             }
         }catch (e) {
             next(e);
@@ -258,7 +256,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
     app.post('/addOrGetUser/:username', async (req, res, next) => {
         try {
             if (!req.params.username) {
-                throw new Error(`Must specify username`);
+                return next(createHttpError(400, `Must specify username`));
             }
             let user = await addOrGetUser(req.params.username);
             res.json(user);
@@ -271,11 +269,11 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
     app.post('/addClient/:clientId/:clientSecret', async (req, res, next) => {
         try {
             if (!req.params.clientId) {
-                throw new Error(`Must specify clientId`);
+                return next(createHttpError(400, `Must specify clientId`));
             }
 
             if (!req.params.clientSecret) {
-                throw new Error(`Must specify clientSecret`);
+                return next(createHttpError(400, `Must specify clientSecret`));
             }
 
             await addClient(req.params.clientId, req.params.clientSecret);
