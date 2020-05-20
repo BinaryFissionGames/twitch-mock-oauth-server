@@ -6,6 +6,7 @@ import * as cookieParser from 'cookie-parser'
 import * as crypto from 'crypto'
 import {PrismaClient, AuthUser, AuthToken, Client} from '@prisma/client'
 import {Express} from "express";
+import * as http from 'http';
 
 const prisma = new PrismaClient({
     datasources: {
@@ -106,7 +107,9 @@ type MockServerOptionsPort = {
 
 type MockServerOptions = MockServerOptionsPort | MockServerOptionsExpressApp
 
-function setUpMockAuthServer(config: MockServerOptions) : Promise<void> {
+let server: http.Server;
+
+function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
     const OAUTH_URL = new URL(config.token_url);
     const OAUTH_AUTHORIZE_URL = new URL(config.authorize_url);
@@ -245,7 +248,7 @@ function setUpMockAuthServer(config: MockServerOptions) : Promise<void> {
     });
 
     app.post('/addOrGetUser/:username', async (req, res) => {
-        if(!req.params.username){
+        if (!req.params.username) {
             throw new Error(`Must specify username`);
         }
         let user = await addOrGetUser(req.params.username);
@@ -254,11 +257,11 @@ function setUpMockAuthServer(config: MockServerOptions) : Promise<void> {
     });
 
     app.post('/addClient/:clientId/:clientSecret', async (req, res) => {
-        if(!req.params.clientId){
+        if (!req.params.clientId) {
             throw new Error(`Must specify clientId`);
         }
 
-        if(!req.params.clientSecret){
+        if (!req.params.clientSecret) {
             throw new Error(`Must specify clientSecret`);
         }
 
@@ -266,16 +269,31 @@ function setUpMockAuthServer(config: MockServerOptions) : Promise<void> {
         res.end();
     });
 
-    if((config as MockServerOptionsPort).port){
+    if ((config as MockServerOptionsPort).port) {
         return new Promise((resolve, reject) => {
-            app.listen((config as MockServerOptionsPort).port, resolve).on('error', reject);
+            server = app.listen((config as MockServerOptionsPort).port, resolve).on('error', reject);
         });
     }
 
     return Promise.resolve();
 }
 
-if(require.main === module){
+async function closeMockServer() : Promise<void> {
+    await prisma.disconnect();
+    if (server) {
+        return new Promise((resolve, reject) => {
+            server.close((err) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve()
+                }
+            });
+        });
+    }
+}
+
+if (require.main === module) {
     clearDb().then(() => {
         return setUpMockAuthServer({
             token_url: 'http://localhost:3080/token',
@@ -292,5 +310,6 @@ export {
     addClient,
     clearDb,
     setUpMockAuthServer,
-    MockServerOptions
+    MockServerOptions,
+    closeMockServer
 }
