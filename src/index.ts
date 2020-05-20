@@ -83,10 +83,14 @@ async function generateToken(user: AuthUser, clientId: string, scope: string): P
                 token: uuidv4(),
                 refreshToken: uuidv4(),
                 issuedClient: {
-                    connect: client
+                    connect: {
+                        clientId: client.clientId
+                    }
                 },
                 issuedUser: {
-                    connect: user
+                    connect: {
+                        id: user.id
+                    }
                 },
                 code: uuidv4(),
                 expiry: new Date(Date.now() + 3600 * 1000),
