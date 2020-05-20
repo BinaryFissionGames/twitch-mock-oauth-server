@@ -20,7 +20,7 @@ async function main() {
         await mkdir(prismaFolder);
     }
 
-    if (fs.existsSync(path.join(prismaFolder, 'prisma.schema'))) {
+    if (fs.existsSync(path.join(prismaFolder, 'schema.prisma'))) {
         console.log('Backing up existing prisma schema file, just in case... (prisma.schema => prisma.schema.backup)');
         await copyFile(path.join(prismaFolder, 'prisma.schema'), path.join(prismaFolder, 'prisma.schema.backup'))
     }
