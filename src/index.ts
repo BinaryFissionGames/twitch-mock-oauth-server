@@ -218,7 +218,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             let sessId = req.cookies.oauth_session;
             let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
             if (!sessId) {
-                throw new Error('Bad session ID');
+                return next(createHttpError(400, 'Could not find any Session ID'));
             }
 
             let user = await prisma.authUser.findOne({
@@ -228,7 +228,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             });
 
             if (!user) {
-                throw new Error(`No user associated to session ${sessId}`);
+                return next(createHttpError(400, `No user associated to session ${sessId}`));
             }
 
             assert.ok(!!url.searchParams.get('client_id'));
