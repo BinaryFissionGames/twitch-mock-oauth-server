@@ -34,7 +34,8 @@ async function main() {
     let childPrismaFile = fs.openSync(path.join(prismaFolder, 'schema.prisma'), 'w');
     let projectPrismaFileContents = fs.readFileSync(path.join(__dirname, '../../prisma/schema.prisma')).toString('utf8');
 
-    projectPrismaFileContents = hasClientDefinition(installerBody) ? removeClientDefinition(projectPrismaFileContents) : projectPrismaFileContents;
+    let originalChildBody = replaceOrAddCode(installerBody, '');
+    projectPrismaFileContents = hasClientDefinition(originalChildBody) ? removeClientDefinition(projectPrismaFileContents) : projectPrismaFileContents;
 
     fs.writeSync(childPrismaFile, replaceOrAddCode(installerBody, projectPrismaFileContents));
     fs.closeSync(childPrismaFile);
