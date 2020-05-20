@@ -34,7 +34,9 @@ async function main() {
     let childPrismaFile = fs.openSync(path.join(prismaFolder, 'schema.prisma'), 'w');
     let projectPrismaFileContents = fs.readFileSync(path.join(__dirname, '../../prisma/schema.prisma')).toString('utf8');
 
-    fs.writeSync(childPrismaFile, replaceOrAddCode(installerBody, removeClientDefinition(projectPrismaFileContents)));
+    projectPrismaFileContents = hasClientDefinition(installerBody) ? removeClientDefinition(projectPrismaFileContents) : projectPrismaFileContents;
+
+    fs.writeSync(childPrismaFile, replaceOrAddCode(installerBody, projectPrismaFileContents));
     fs.closeSync(childPrismaFile);
 
     console.log('Appended/copied prisma schema. Copying blank database template...');
@@ -45,8 +47,13 @@ async function main() {
     console.log('If you run into problems and would like to undo what this script has done, copy prisma.schema.backup => prisma.schema, and delete the database file created in the prisma folder.');
 }
 
+const clientDefRegex = /generator client {[^}]*}/m;
+
+function hasClientDefinition(body: string) {
+    return clientDefRegex.test(body);
+}
+
 function removeClientDefinition(body: string): string {
-    const clientDefRegex = /generator client {[^}]*}/m;
     return body.replace(clientDefRegex, '');
 }
 
