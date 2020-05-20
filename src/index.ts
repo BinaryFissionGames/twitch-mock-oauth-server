@@ -122,151 +122,167 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
     }));
 
 
-    app.post(OAUTH_URL.pathname, async (req, res) => {
-        let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
-        if (req.body.grant_type === 'authorization_code') {
-            //Asking for auth token w/ code
-            assert.ok(!!req.body.client_id);
-            assert.ok(!!req.body.client_secret);
-            assert.ok(!!req.body.code);
-            assert.ok(!!req.body.redirect_uri);
-            assert.ok(!!req.body.scope);
-            //TODO: Verify code, send back token
-            let token = await prisma.authToken.findMany({
-                where: {
-                    issuedClient: {
-                        clientId: req.body.client_id,
-                        clientSecretHash: crypto.createHash('sha256').update(req.body.client_secret).digest('hex')
-                    },
-                    code: req.body.code
+    app.post(OAUTH_URL.pathname, async (req, res, next) => {
+        try {
+            let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
+            if (req.body.grant_type === 'authorization_code') {
+                //Asking for auth token w/ code
+                assert.ok(!!req.body.client_id);
+                assert.ok(!!req.body.client_secret);
+                assert.ok(!!req.body.code);
+                assert.ok(!!req.body.redirect_uri);
+                assert.ok(!!req.body.scope);
+                //TODO: Verify code, send back token
+                let token = await prisma.authToken.findMany({
+                    where: {
+                        issuedClient: {
+                            clientId: req.body.client_id,
+                            clientSecretHash: crypto.createHash('sha256').update(req.body.client_secret).digest('hex')
+                        },
+                        code: req.body.code
+                    }
+                });
+
+                if (!token || token.length < 1) {
+                    throw new Error("No token associated with the client/secret/code combination.");
                 }
-            });
 
-            if (!token || token.length < 1) {
-                throw new Error("No token associated with the client/secret/code combination.");
-            }
+                res.json({
+                    access_token: token[0].token,
+                    refresh_token: token[0].refreshToken,
+                    scope: token[0].scope && token[0].scope !== '' ? token[0].scope.split(' ') : [],
+                    expires_in: Math.floor((token[0].expiry.getTime() - Date.now()) / 1000),
+                    token_type: 'bearer'
+                });
 
-            res.json({
-                access_token: token[0].token,
-                refresh_token: token[0].refreshToken,
-                scope: token[0].scope && token[0].scope !== '' ? token[0].scope.split(' ') : [],
-                expires_in: Math.floor((token[0].expiry.getTime() - Date.now()) / 1000),
-                token_type: 'bearer'
-            });
+                res.end();
 
-            res.end();
-
-        } else if (req.body.grant_type === 'refresh_token') {
-            //Asking for oauth token w/ refresh token
-            assert.ok(!!req.body.client_id);
-            assert.ok(!!req.body.client_secret);
-            assert.ok(!!req.body.refresh_token);
-            //TODO: Verify refresh token, send back new auth token / refresh token pair
-            let tokens = await prisma.authToken.findMany({
-                where: {
-                    issuedClient: {
-                        clientId: req.body.client_id,
-                        clientSecretHash: crypto.createHash('sha256').update(req.body.client_secret).digest('hex')
+            } else if (req.body.grant_type === 'refresh_token') {
+                //Asking for oauth token w/ refresh token
+                assert.ok(!!req.body.client_id);
+                assert.ok(!!req.body.client_secret);
+                assert.ok(!!req.body.refresh_token);
+                //TODO: Verify refresh token, send back new auth token / refresh token pair
+                let tokens = await prisma.authToken.findMany({
+                    where: {
+                        issuedClient: {
+                            clientId: req.body.client_id,
+                            clientSecretHash: crypto.createHash('sha256').update(req.body.client_secret).digest('hex')
+                        },
+                        refreshToken: req.body.refresh_token
                     },
-                    refreshToken: req.body.refresh_token
-                },
-                include: {
-                    issuedUser: true
+                    include: {
+                        issuedUser: true
+                    }
+                });
+
+                if (!tokens || tokens.length < 1) {
+                    throw new Error("No token associated with the client/secret/refresh token combination.");
                 }
-            });
 
-            if (!tokens || tokens.length < 1) {
-                throw new Error("No token associated with the client/secret/refresh token combination.");
-            }
+                let requestedScopes: string[];
+                if (req.body.scope && req.body.scope !== '') {
+                    requestedScopes = req.body.scope.split(' ');
+                } else {
+                    requestedScopes = tokens[0].scope && tokens[0].scope !== '' ? tokens[0].scope.split(' ') : [];
+                }
 
-            let requestedScopes: string[];
-            if (req.body.scope && req.body.scope !== '') {
-                requestedScopes = req.body.scope.split(' ');
+                let oldScopes: string[] = tokens[0].scope && tokens[0].scope !== '' ? tokens[0].scope.split(' ') : [];
+
+                requestedScopes.forEach((val) => {
+                    if (!oldScopes.includes(val)) {
+                        throw new Error(`Requested scope is greater than the original scopes! (${val} was not originally requested)`);
+                    }
+                });
+
+                let token = await generateToken(tokens[0].issuedUser, req.body.client_id, requestedScopes.join(' '));
+
+                res.json({
+                    access_token: token.token,
+                    refresh_token: token.refreshToken,
+                    scope: token.scope && token.scope !== '' ? token.scope.split(' ') : [],
+                    expires_in: Math.floor((token.expiry.getTime() - Date.now()) / 1000),
+                    token_type: 'bearer'
+                });
+
+                res.end();
+
             } else {
-                requestedScopes = tokens[0].scope && tokens[0].scope !== '' ? tokens[0].scope.split(' ') : [];
+                throw new Error(`Bad grant type ${url.searchParams.get('grant_type')}`);
+            }
+        }catch (e) {
+            next(e);
+        }
+    });
+
+    app.get(OAUTH_AUTHORIZE_URL.pathname, async (req, res, next) => {
+        try {
+            let sessId = req.cookies.oauth_session;
+            let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
+            if (!sessId) {
+                throw new Error('Bad session ID');
             }
 
-            let oldScopes: string[] = tokens[0].scope && tokens[0].scope !== '' ? tokens[0].scope.split(' ') : [];
-
-            requestedScopes.forEach((val) => {
-                if (!oldScopes.includes(val)) {
-                    throw new Error(`Requested scope is greater than the original scopes! (${val} was not originally requested)`);
+            let user = await prisma.authUser.findOne({
+                where: {
+                    sessionId: sessId
                 }
             });
 
-            let token = await generateToken(tokens[0].issuedUser, req.body.client_id, requestedScopes.join(' '));
-
-            res.json({
-                access_token: token.token,
-                refresh_token: token.refreshToken,
-                scope: token.scope && token.scope !== '' ? token.scope.split(' ') : [],
-                expires_in: Math.floor((token.expiry.getTime() - Date.now()) / 1000),
-                token_type: 'bearer'
-            });
-
-            res.end();
-
-        } else {
-            throw new Error(`Bad grant type ${url.searchParams.get('grant_type')}`);
-        }
-    });
-
-    app.get(OAUTH_AUTHORIZE_URL.pathname, async (req, res) => {
-        let sessId = req.cookies.oauth_session;
-        let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
-        if (!sessId) {
-            throw new Error('Bad session ID');
-        }
-
-        let user = await prisma.authUser.findOne({
-            where: {
-                sessionId: sessId
+            if (!user) {
+                throw new Error(`No user associated to session ${sessId}`);
             }
-        });
 
-        if (!user) {
-            throw new Error(`No user associated to session ${sessId}`);
+            assert.ok(!!url.searchParams.get('client_id'));
+            assert.ok(!!url.searchParams.get('redirect_uri'));
+            assert.ok(!!url.searchParams.get('response_type'));
+            assert.ok(!!url.searchParams.get('scope'));
+
+            let token = await generateToken(user, decodeURIComponent(<string>url.searchParams.get('client_id')), decodeURIComponent(<string>url.searchParams.get('scope')));
+
+            let scopes: string[] = (decodeURIComponent(<string>url.searchParams.get('scope')).trim() === '') ? [] : decodeURIComponent(<string>url.searchParams.get('scope')).split(' ');
+
+            //Always redirect; Typically the user would click a button here, but this is meant to be automated; So we assume the user presses yet
+            //TODO: Possibly reject in some cases? I think twitch just redirects back to the original URL, but i'd need to confirm this behaviour
+            res.redirect(307, `${decodeURIComponent(<string>url.searchParams.get('redirect_uri'))}` +
+                `?access_token=${encodeURIComponent(token.token)}` +
+                `&refresh_token=${encodeURIComponent(token.refreshToken)}` +
+                `&expires_in=3600` +
+                `&scope=${JSON.stringify(scopes)}` +
+                `&token_type=bearer`);
+        } catch (e) {
+            next(e);
         }
-
-        assert.ok(!!url.searchParams.get('client_id'));
-        assert.ok(!!url.searchParams.get('redirect_uri'));
-        assert.ok(!!url.searchParams.get('response_type'));
-        assert.ok(!!url.searchParams.get('scope'));
-
-        let token = await generateToken(user, decodeURIComponent(<string>url.searchParams.get('client_id')), decodeURIComponent(<string>url.searchParams.get('scope')));
-
-        let scopes: string[] = (decodeURIComponent(<string>url.searchParams.get('scope')).trim() === '') ? [] : decodeURIComponent(<string>url.searchParams.get('scope')).split(' ');
-
-        //Always redirect; Typically the user would click a button here, but this is meant to be automated; So we assume the user presses yet
-        //TODO: Possibly reject in some cases? I think twitch just redirects back to the original URL, but i'd need to confirm this behaviour
-        res.redirect(307, `${decodeURIComponent(<string>url.searchParams.get('redirect_uri'))}` +
-            `?access_token=${encodeURIComponent(token.token)}` +
-            `&refresh_token=${encodeURIComponent(token.refreshToken)}` +
-            `&expires_in=3600` +
-            `&scope=${JSON.stringify(scopes)}` +
-            `&token_type=bearer`);
     });
 
-    app.post('/addOrGetUser/:username', async (req, res) => {
-        if (!req.params.username) {
-            throw new Error(`Must specify username`);
+    app.post('/addOrGetUser/:username', async (req, res, next) => {
+        try {
+            if (!req.params.username) {
+                throw new Error(`Must specify username`);
+            }
+            let user = await addOrGetUser(req.params.username);
+            res.json(user);
+            res.end();
+        }catch (e) {
+            next(e);
         }
-        let user = await addOrGetUser(req.params.username);
-        res.json(user);
-        res.end();
     });
 
-    app.post('/addClient/:clientId/:clientSecret', async (req, res) => {
-        if (!req.params.clientId) {
-            throw new Error(`Must specify clientId`);
-        }
+    app.post('/addClient/:clientId/:clientSecret', async (req, res, next) => {
+        try {
+            if (!req.params.clientId) {
+                throw new Error(`Must specify clientId`);
+            }
 
-        if (!req.params.clientSecret) {
-            throw new Error(`Must specify clientSecret`);
-        }
+            if (!req.params.clientSecret) {
+                throw new Error(`Must specify clientSecret`);
+            }
 
-        await addClient(req.params.clientId, req.params.clientSecret);
-        res.end();
+            await addClient(req.params.clientId, req.params.clientSecret);
+            res.end();
+        }catch (e) {
+            next(e);
+        }
     });
 
     if ((config as MockServerOptionsPort).port) {
