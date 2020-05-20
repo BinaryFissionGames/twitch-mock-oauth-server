@@ -60,7 +60,7 @@ function removeClientDefinition(body: string): string {
 
 function replaceOrAddCode(body: string, code: string): string {
     let regex = /\/\/COPIED CONTENTS FROM twitch-mock-oauth-server(.|\n|\r)*\/\/END CONTENTS FROM twitch-mock-oauth-server/mg;
-    let insertion = '\r\n//COPIED CONTENTS FROM twitch-mock-oauth-server - TOUCHING THIS CODE MAY BREAK THIS COMPONENT!\r\n';
+    let insertion = '//COPIED CONTENTS FROM twitch-mock-oauth-server - TOUCHING THIS CODE MAY BREAK THIS COMPONENT!\r\n';
     insertion += code;
     insertion += '\r\n//END CONTENTS FROM twitch-mock-oauth-server';
     if (regex.test(body)) {
@@ -75,7 +75,7 @@ function isInstalledAsDependency(): boolean {
     return fs.existsSync(path.join(__dirname, '../../../../node_modules'))
 }
 
-if(isInstalledAsDependency()){
+if (isInstalledAsDependency()) {
     main();
 } else {
     console.log("Skipping post-install hook; twitch-mock-oauth-server is not installed as a module.")
