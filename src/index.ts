@@ -278,8 +278,11 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
     return Promise.resolve();
 }
 
-async function closeMockServer() : Promise<void> {
-    await prisma.disconnect();
+async function closeMockServer(killPrisma?: boolean): Promise<void> {
+    if (killPrisma) {
+        await prisma.disconnect();
+    }
+
     if (server) {
         return new Promise((resolve, reject) => {
             server.close((err) => {
