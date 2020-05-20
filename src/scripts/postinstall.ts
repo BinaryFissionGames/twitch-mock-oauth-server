@@ -21,8 +21,8 @@ async function main() {
     }
 
     if (fs.existsSync(path.join(prismaFolder, 'schema.prisma'))) {
-        console.log('Backing up existing prisma schema file, just in case... (prisma.schema => prisma.schema.backup)');
-        await copyFile(path.join(prismaFolder, 'prisma.schema'), path.join(prismaFolder, 'prisma.schema.backup'))
+        console.log('Backing up existing prisma schema file, just in case... (schema.prisma => schema.backup.prisma)');
+        await copyFile(path.join(prismaFolder, 'schema.prisma'), path.join(prismaFolder, 'schema.backup.prisma'))
     }
 
     console.log('Appending prisma schema file to the end of existing projects schema file...');
@@ -45,7 +45,7 @@ async function main() {
     await copyFile(path.join(__dirname, '../../prisma/twitch_mock_oauth_server_db.db'), path.join(prismaFolder, 'twitch_mock_oauth_server_db.db'));
 
     console.log('Install done. Please run npx prisma generate to (re)generate your schema, and confirm that the original schema is intact.');
-    console.log('If you run into problems and would like to undo what this script has done, copy prisma.schema.backup => prisma.schema, and delete the database file created in the prisma folder.');
+    console.log('If you run into problems and would like to undo what this script has done, copy schema.backup.prisma => schema.prisma, and delete the database file created in the prisma folder.');
 }
 
 const clientDefRegex = /generator client {[^}]*}/m;
