@@ -9,12 +9,11 @@ import {Express} from "express";
 
 const prisma = new PrismaClient({
     datasources: {
-        twitch_mock_oauth_server_ds: 'twitch_mock_oauth_server_ds'
+        twitch_mock_oauth_server_ds: 'file:./twitch_mock_oauth_server_db.db' // need to specify this here.. I think? Need to look more into how this interacts with multiple datasources
     }
 });
 
 //TODO integrate http-errors
-
 
 async function addClient(clientId: string, clientSecret: string): Promise<Client> {
     return await prisma.client.create({
