@@ -68,7 +68,9 @@ async function generateToken(user: AuthUser, clientId: string, scope: string): P
 
     if (tokens && tokens.length >= 1) {
         return prisma.authToken.update({
-            where: tokens[0],
+            where:{
+              id: tokens[0].id
+            },
             data: {
                 token: uuidv4(),
                 refreshToken: uuidv4(),
