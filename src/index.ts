@@ -162,7 +162,6 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 assert.ok(!!req.body.client_id, createHttpError(400, 'Missing client_id'));
                 assert.ok(!!req.body.client_secret, createHttpError(400, 'Missing client_secret'));
                 assert.ok(!!req.body.refresh_token, createHttpError(400, 'Missing refresh_token'));
-                //TODO: Verify refresh token, send back new auth token / refresh token pair
                 let tokens = await prisma.authToken.findMany({
                     where: {
                         issuedClient: {
@@ -236,12 +235,14 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             assert.ok(!!url.searchParams.get('client_id'), createHttpError(400, 'Missing client_id'));
             assert.ok(!!url.searchParams.get('redirect_uri'), createHttpError(400, 'Missing redirect_uri'));
             assert.ok(!!url.searchParams.get('response_type'), createHttpError(400, 'Missing response_type'));
-            assert.ok(!!url.searchParams.get('scope'), createHttpError(400, 'Missing scope'));
 
             let token = await generateToken(user, decodeURIComponent(<string>url.searchParams.get('client_id')), decodeURIComponent(<string>url.searchParams.get('scope')));
 
-            let scopes: string[] = (decodeURIComponent(<string>url.searchParams.get('scope')).trim() === '') ? [] : decodeURIComponent(<string>url.searchParams.get('scope')).split(' ');
-
+            let scopes: string[] = [];
+            if (url.searchParams.get('scope')) {
+                scopes = (decodeURIComponent(<string>url.searchParams.get('scope')).trim() === '') ? [] : decodeURIComponent(<string>url.searchParams.get('scope')).split(' ');
+            }
+            
             //Always redirect; Typically the user would click a button here, but this is meant to be automated; So we assume the user presses yet
             //TODO: Possibly reject in some cases? I think twitch just redirects back to the original URL, but i'd need to confirm this behaviour
             res.redirect(307, `${decodeURIComponent(<string>url.searchParams.get('redirect_uri'))}` +
