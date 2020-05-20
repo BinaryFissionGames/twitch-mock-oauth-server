@@ -67,6 +67,17 @@ async function generateToken(user: AuthUser, clientId: string, scope: string): P
     });
 
     if (tokens && tokens.length >= 1) {
+        return prisma.authToken.update({
+            where: tokens[0],
+            data: {
+                token: uuidv4(),
+                refreshToken: uuidv4(),
+                code: uuidv4(),
+                expiry: new Date(Date.now() + 3600 * 1000),
+                scope: scope
+            }
+        });
+    } else {
         return prisma.authToken.create({
             data: {
                 token: uuidv4(),
@@ -77,17 +88,6 @@ async function generateToken(user: AuthUser, clientId: string, scope: string): P
                 issuedUser: {
                     connect: user
                 },
-                code: uuidv4(),
-                expiry: new Date(Date.now() + 3600 * 1000),
-                scope: scope
-            }
-        })
-    } else {
-        return prisma.authToken.update({
-            where: tokens[0],
-            data: {
-                token: uuidv4(),
-                refreshToken: uuidv4(),
                 code: uuidv4(),
                 expiry: new Date(Date.now() + 3600 * 1000),
                 scope: scope
