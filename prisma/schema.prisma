@@ -1,9 +1,9 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-datasource db {
+datasource twitch_mock_oauth_server_ds {
   provider = "sqlite"
-  url      = "file:./database.db"
+  url      = "file:./twitch_mock_oauth_server_db.db"
 }
 
 generator client {

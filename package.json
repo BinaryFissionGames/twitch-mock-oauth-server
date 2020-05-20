@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "postinstall": "node dist/scripts/postinstall.js"
   },
   "keywords": [
     "Twitch",
@@ -24,9 +25,7 @@
     "@types/uuid": "^7.0.3",
     "cookie-parser": "^1.4.5",
     "express": "^4.17.1",
-    "uuid": "^8.0.0"
-  },
-  "devDependencies": {
+    "uuid": "^8.0.0",
     "@prisma/cli": "^2.0.0-beta.5"
   }
 }

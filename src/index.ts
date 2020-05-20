@@ -7,7 +7,11 @@ import * as crypto from 'crypto'
 import {PrismaClient, AuthUser, AuthToken, Client} from '@prisma/client'
 import {Express} from "express";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+    datasources: {
+        twitch_mock_oauth_server_ds: 'twitch_mock_oauth_server_ds'
+    }
+});
 
 //TODO integrate http-errors
 
@@ -265,7 +269,7 @@ function setUpMockAuthServer(config: MockServerOptions) : Promise<void> {
 
     if((config as MockServerOptionsPort).port){
         return new Promise((resolve, reject) => {
-            app.listen((config as MockServerOptionsPort).port, resolve);
+            app.listen((config as MockServerOptionsPort).port, resolve).on('error', reject);
         });
     }
 
