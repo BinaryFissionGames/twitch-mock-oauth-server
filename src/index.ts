@@ -211,7 +211,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
         }
     });
 
-    app.post(OAUTH_AUTHORIZE_URL.pathname, async (req, res) => {
+    app.get(OAUTH_AUTHORIZE_URL.pathname, async (req, res) => {
         let sessId = req.cookies.oauth_session;
         let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
         if (!sessId) {
