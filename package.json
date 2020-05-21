@@ -1,6 +1,6 @@
 {
   "name": "twitch-mock-oauth-server",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "description": "Quick and dirty mock oauth twitch server for testing applications",
   "main": "dist/index.js",
   "scripts": {
