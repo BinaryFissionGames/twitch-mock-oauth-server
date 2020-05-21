@@ -204,7 +204,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 res.json({
                     access_token: token.token,
                     refresh_token: token.refreshToken,
-                    scope: token.scope && token.scope !== '' ? token.scope.split(' ') : [],
+                    scope: token.scope ? token.scope : '',
                     expires_in: Math.floor((token.expiry.getTime() - Date.now()) / 1000),
                     token_type: 'bearer'
                 });
