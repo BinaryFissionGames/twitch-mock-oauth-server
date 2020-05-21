@@ -259,6 +259,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             res.redirect(307, `${decodeURIComponent(<string>url.searchParams.get('redirect_uri'))}` +
                 `?access_token=${encodeURIComponent(token.token)}` +
                 `&refresh_token=${encodeURIComponent(token.refreshToken)}` +
+                `&code=${encodeURIComponent(token.code)}` +
                 `&expires_in=3600` +
                 `&scope=${JSON.stringify(scopes)}` +
                 `&token_type=bearer`);
