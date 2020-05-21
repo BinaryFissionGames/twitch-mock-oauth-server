@@ -1,5 +1,4 @@
 import * as express from 'express';
-import * as bodyParser from 'body-parser';
 import * as assert from 'assert';
 import {v4 as uuidv4} from 'uuid';
 import * as cookieParser from 'cookie-parser'
@@ -128,29 +127,26 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
     const app = (config as MockServerOptionsExpressApp).expressApp ? (config as MockServerOptionsExpressApp).expressApp : express();
 
     app.use(cookieParser());
-    app.use(bodyParser.urlencoded({
-        extended: false
-    }));
 
 
     app.post(OAUTH_URL.pathname, async (req, res, next) => {
         try {
             let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
-            if (req.body.grant_type === 'authorization_code') {
+            if (req.query.grant_type === 'authorization_code') {
                 //Asking for auth token w/ code
-                assert.ok(!!req.body.client_id, createHttpError(400, 'Missing client_id'));
-                assert.ok(!!req.body.client_secret, createHttpError(400, 'Missing client_secret'));
-                assert.ok(!!req.body.code, createHttpError(400, 'Missing code'));
-                assert.ok(!!req.body.redirect_uri, createHttpError(400, 'Missing redirect_uri'));
-                assert.ok(!!req.body.scope, createHttpError(400, 'Missing scope'));
+                assert.ok(!!req.query.client_id, createHttpError(400, 'Missing client_id'));
+                assert.ok(!!req.query.client_secret, createHttpError(400, 'Missing client_secret'));
+                assert.ok(!!req.query.code, createHttpError(400, 'Missing code'));
+                assert.ok(!!req.query.redirect_uri, createHttpError(400, 'Missing redirect_uri'));
+                assert.ok(!!req.query.scope, createHttpError(400, 'Missing scope'));
                 //TODO: Verify code, send back token
                 let token = await prisma.authToken.findMany({
                     where: {
                         issuedClient: {
-                            clientId: req.body.client_id,
-                            clientSecretHash: crypto.createHash('sha256').update(req.body.client_secret).digest('hex')
+                            clientId: req.query.client_id.toString(),
+                            clientSecretHash: crypto.createHash('sha256').update(req.query.client_secret.toString()).digest('hex')
                         },
-                        code: req.body.code
+                        code: req.query.code.toString()
                     }
                 });
 
@@ -168,18 +164,18 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
                 res.end();
 
-            } else if (req.body.grant_type === 'refresh_token') {
+            } else if (req.query.grant_type === 'refresh_token') {
                 //Asking for oauth token w/ refresh token
-                assert.ok(!!req.body.client_id, createHttpError(400, 'Missing client_id'));
-                assert.ok(!!req.body.client_secret, createHttpError(400, 'Missing client_secret'));
-                assert.ok(!!req.body.refresh_token, createHttpError(400, 'Missing refresh_token'));
+                assert.ok(!!req.query.client_id, createHttpError(400, 'Missing client_id'));
+                assert.ok(!!req.query.client_secret, createHttpError(400, 'Missing client_secret'));
+                assert.ok(!!req.query.refresh_token, createHttpError(400, 'Missing refresh_token'));
                 let tokens = await prisma.authToken.findMany({
                     where: {
                         issuedClient: {
-                            clientId: req.body.client_id,
-                            clientSecretHash: crypto.createHash('sha256').update(req.body.client_secret).digest('hex')
+                            clientId: req.query.client_id.toString(),
+                            clientSecretHash: crypto.createHash('sha256').update(req.query.client_secret.toString()).digest('hex')
                         },
-                        refreshToken: req.body.refresh_token
+                        refreshToken: req.query.refresh_token.toString()
                     },
                     include: {
                         issuedUser: true
@@ -191,8 +187,8 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 }
 
                 let requestedScopes: string[];
-                if (req.body.scope && req.body.scope !== '') {
-                    requestedScopes = req.body.scope.split(' ');
+                if (req.query.scope && req.query.scope !== '') {
+                    requestedScopes = req.query.scope.toString().split(' ');
                 } else {
                     requestedScopes = tokens[0].scope && tokens[0].scope !== '' ? tokens[0].scope.split(' ') : [];
                 }
@@ -205,7 +201,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                     }
                 });
 
-                let token = await generateToken(tokens[0].issuedUser, req.body.client_id, requestedScopes.join(' '));
+                let token = await generateToken(tokens[0].issuedUser, req.query.client_id.toString(), requestedScopes.join(' '));
 
                 res.json({
                     access_token: token.token,
@@ -228,7 +224,6 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
     app.get(OAUTH_AUTHORIZE_URL.pathname, async (req, res, next) => {
         try {
             let sessId = req.cookies.oauth_session;
-            let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
             if (!sessId) {
                 return next(createHttpError(400, 'Could not find any Session ID'));
             }
@@ -243,24 +238,24 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 return next(createHttpError(400, `No user associated to session ${sessId}`));
             }
 
-            assert.ok(!!req.body.client_id, createHttpError(400, 'Missing client_id'));
-            assert.ok(!!req.body.redirect_uri, createHttpError(400, 'Missing redirect_uri'));
-            assert.ok(!!req.body.response_type, createHttpError(400, 'Missing response_type'));
+            assert.ok(!!req.query.client_id, createHttpError(400, 'Missing client_id'));
+            assert.ok(!!req.query.redirect_uri, createHttpError(400, 'Missing redirect_uri'));
+            assert.ok(!!req.query.response_type, createHttpError(400, 'Missing response_type'));
 
-            let token = await generateToken(user, decodeURIComponent(<string>url.searchParams.get('client_id')), decodeURIComponent(<string>url.searchParams.get('scope')));
+            let token = await generateToken(user, decodeURIComponent(req.query.client_id.toString()), decodeURIComponent(req.query.scope?.toString()));
 
             let scopes: string[] = [];
-            if (url.searchParams.get('scope')) {
-                scopes = (decodeURIComponent(<string>url.searchParams.get('scope')).trim() === '') ? [] : decodeURIComponent(<string>url.searchParams.get('scope')).split(' ');
+            if (req.query.scope) {
+                scopes = (decodeURIComponent(req.query.scope.toString()).trim() === '') ? [] : decodeURIComponent(req.query.scope.toString()).split(' ');
             }
 
             //Always redirect; Typically the user would click a button here, but this is meant to be automated; So we assume the user presses yet
             //TODO: Possibly reject in some cases? I think twitch just redirects back to the original URL, but i'd need to confirm this behaviour
-            res.redirect(307, `${decodeURIComponent(<string>url.searchParams.get('redirect_uri'))}` +
+            res.redirect(307, `${decodeURIComponent(req.query.redirect_uri.toString())}` +
                 `?access_token=${encodeURIComponent(token.token)}` +
                 `&refresh_token=${encodeURIComponent(token.refreshToken)}` +
                 `&code=${encodeURIComponent(token.code)}` +
-                (req.body.state ? `&state=${req.body.state}` : '') +
+                (req.query.state ? `&state=${req.query.state.toString()}` : '') +
                 `&expires_in=3600` +
                 `&scope=${JSON.stringify(scopes)}` +
                 `&token_type=bearer`);
