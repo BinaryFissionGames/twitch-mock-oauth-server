@@ -131,14 +131,12 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
     app.post(OAUTH_URL.pathname, async (req, res, next) => {
         try {
-            let url = new URL(req.originalUrl, `http://${req.header('hostname')}`);
             if (req.query.grant_type === 'authorization_code') {
                 //Asking for auth token w/ code
                 assert.ok(!!req.query.client_id, createHttpError(400, 'Missing client_id'));
                 assert.ok(!!req.query.client_secret, createHttpError(400, 'Missing client_secret'));
                 assert.ok(!!req.query.code, createHttpError(400, 'Missing code'));
                 assert.ok(!!req.query.redirect_uri, createHttpError(400, 'Missing redirect_uri'));
-                assert.ok(!!req.query.scope, createHttpError(400, 'Missing scope'));
                 //TODO: Verify code, send back token
                 let token = await prisma.authToken.findMany({
                     where: {
@@ -214,7 +212,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 res.end();
 
             } else {
-                return next(createHttpError(400, `Bad grant type ${url.searchParams.get('grant_type')}`));
+                return next(createHttpError(400, `Bad grant type ${req.query.grant_type}`));
             }
         } catch (e) {
             next(e);
