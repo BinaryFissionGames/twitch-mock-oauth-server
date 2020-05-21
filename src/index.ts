@@ -243,9 +243,9 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 return next(createHttpError(400, `No user associated to session ${sessId}`));
             }
 
-            assert.ok(!!url.searchParams.get('client_id'), createHttpError(400, 'Missing client_id'));
-            assert.ok(!!url.searchParams.get('redirect_uri'), createHttpError(400, 'Missing redirect_uri'));
-            assert.ok(!!url.searchParams.get('response_type'), createHttpError(400, 'Missing response_type'));
+            assert.ok(!!req.body.client_id, createHttpError(400, 'Missing client_id'));
+            assert.ok(!!req.body.redirect_uri, createHttpError(400, 'Missing redirect_uri'));
+            assert.ok(!!req.body.response_type, createHttpError(400, 'Missing response_type'));
 
             let token = await generateToken(user, decodeURIComponent(<string>url.searchParams.get('client_id')), decodeURIComponent(<string>url.searchParams.get('scope')));
 
@@ -260,6 +260,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 `?access_token=${encodeURIComponent(token.token)}` +
                 `&refresh_token=${encodeURIComponent(token.refreshToken)}` +
                 `&code=${encodeURIComponent(token.code)}` +
+                (req.body.state ? `&state=${req.body.state}` : '') +
                 `&expires_in=3600` +
                 `&scope=${JSON.stringify(scopes)}` +
                 `&token_type=bearer`);
