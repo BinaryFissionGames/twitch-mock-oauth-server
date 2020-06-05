@@ -3,14 +3,14 @@ import * as assert from 'assert';
 import {v4 as uuidv4} from 'uuid';
 import * as cookieParser from 'cookie-parser'
 import * as crypto from 'crypto'
-import {PrismaClient, AuthUser, AuthToken, Client} from '@prisma/client'
+import {PrismaClient, AuthUser, AuthToken, Client} from '../dist/generated/prisma/client'
 import {Express, NextFunction} from "express";
 import * as http from 'http';
 import * as createHttpError from "http-errors";
 
 const prisma = new PrismaClient({
     datasources: {
-        twitch_mock_oauth_server_ds: 'file:./twitch_mock_oauth_server_db.db' // need to specify this here.. I think? Need to look more into how this interacts with multiple datasources
+        twitch_mock_oauth_server_ds: 'file:./twitch_mock_oauth_server_db.db'
     }
 });
 
