@@ -13,7 +13,6 @@ import * as path from 'path';
 type MockServerOptionsCommon = {
     token_url: string,
     authorize_url: string,
-    alwaysAuthorize?: string, //
     logErrors?: boolean
 }
 
