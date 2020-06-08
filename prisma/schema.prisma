@@ -25,8 +25,8 @@ model AuthUser {
 
 model AuthToken {
     id Int @id @default(autoincrement())
-    token String
-    refreshToken String
+    token String @unique
+    refreshToken String @unique
     code String
     expiry DateTime
     scope String
