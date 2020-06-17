@@ -5,14 +5,13 @@ import * as cookieParser from "cookie-parser";
 import * as assert from "assert";
 import * as createHttpError from "http-errors";
 import * as crypto from "crypto";
-import {addClient, addOrGetUser} from "./programmatic_api";
-import {generateToken, prisma} from "./internal";
-import * as fs from 'fs';
-import * as path from 'path';
+import {addClient, addOrGetUser, validateToken} from "./programmatic_api";
+import {generateToken, getUserAuthorizationForm, prisma} from "./internal";
 
 type MockServerOptionsCommon = {
     token_url: string,
     authorize_url: string,
+    validate_url: string,
     logErrors?: boolean
 }
 
@@ -32,6 +31,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
     const OAUTH_URL = new URL(config.token_url);
     const OAUTH_AUTHORIZE_URL = new URL(config.authorize_url);
+    const OAUTH_VALIDATE_URL = new URL(config.validate_url);
 
     const app = (config as MockServerOptionsExpressApp).expressApp ? (config as MockServerOptionsExpressApp).expressApp : express();
 
@@ -135,14 +135,12 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
             let sessId = req.cookies.oauth_session;
             if (!sessId) {
                 res.send(
-                    fs.readFileSync(path.join(__dirname, '../www/index.html')).toString('utf8')
-                        .replace('<!--INSERTHIDDENHERE-->',
-                            `<input type="hidden" name="client_id" id="client_id" value="${req.query.client_id}">` +
-                            `<input type="hidden" name="redirect_uri" id="redirect_uri" value="${req.query.redirect_uri}">` +
-                            `<input type="hidden" name="response_type" id="response_type" value="${req.query.response_type}">` +
-                            (req.query.state ? `<input type="hidden" name="state" id="state" value="${req.query.state}">` : '') +
-                            (req.query.scope ? `<input type="hidden" name="scope" id="scope" value="${req.query.scope}">` : '')
-                        )
+                    getUserAuthorizationForm(
+                        req.query.client_id.toString(),
+                        req.query.redirect_uri.toString(),
+                        req.query.response_type.toString(),
+                        req.query.state?.toString(),
+                        req.query.scope?.toString())
                 );
                 res.end();
                 return;
@@ -157,40 +155,26 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
 
             if (!user) {
                 res.send(
-                    fs.readFileSync(path.join(__dirname, '../www/index.html')).toString('utf8')
-                        .replace('<!--INSERTHIDDENHERE-->',
-                            `<input type="hidden" name="client_id" id="client_id" value="${req.query.client_id}">` +
-                            `<input type="hidden" name="redirect_uri" id="redirect_uri" value="${req.query.redirect_uri}">` +
-                            `<input type="hidden" name="response_type" id="response_type" value="${req.query.response_type}">` +
-                            (req.query.state ? `<input type="hidden" name="state" id="state" value="${req.query.state}">` : '') +
-                            (req.query.scope ? `<input type="hidden" name="scope" id="scope" value="${req.query.scope}">` : '')
-                        )
+                    getUserAuthorizationForm(
+                        req.query.client_id.toString(),
+                        req.query.redirect_uri.toString(),
+                        req.query.response_type.toString(),
+                        req.query.state?.toString(),
+                        req.query.scope?.toString())
                 );
                 res.end();
                 return;
             }
 
             let token = await generateToken(user, decodeURIComponent(req.query.client_id.toString()), decodeURIComponent(req.query.scope?.toString()));
-
-            let scopes: string[] = [];
-            if (req.query.scope) {
-                scopes = (decodeURIComponent(req.query.scope.toString()).trim() === '') ? [] : decodeURIComponent(req.query.scope.toString()).split(' ');
+            let url = new URL(req.query.redirect_uri.toString());
+            url.searchParams.set('code', token.code);
+            if (req.query.state) {
+                url.searchParams.set('state', req.query.state.toString());
             }
-
+            url.searchParams.set('scope', token.scope);
             //Always redirect; Typically the user would click a button here, but this is meant to be automated; So we assume the user presses yes
-            //TODO: Possibly reject in some cases? I think twitch just redirects back to the original URL, but i'd need to confirm this behaviour
-            res.redirect(307,
-                `${decodeURIComponent(req.query.redirect_uri.toString())}` +
-                `?access_token=${encodeURIComponent(token.token)}` +
-                `&refresh_token=${encodeURIComponent(token.refreshToken)}` +
-                `&code=${encodeURIComponent(token.code)}` +
-                (req.query.state ?
-                    `&state=${req.query.state.toString()}`
-                    : '') +
-                `&expires_in=3600` +
-                `&scope=${JSON.stringify(scopes)}` +
-                `&token_type=bearer`
-            );
+            res.redirect(307, url.href);
         } catch (e) {
             next(e);
         }
@@ -213,22 +197,30 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
                 httpOnly: true
             });
 
-            res.redirect(307,
-                `${req.query.redirect_uri}` +
-                `?access_token=${encodeURIComponent(token.token)}` +
-                `&refresh_token=${encodeURIComponent(token.refreshToken)}` +
-                `&code=${encodeURIComponent(token.code)}` +
-                (req.query.state ?
-                    `&state=${req.query.state}`
-                    : '') +
-                `&expires_in=3600` +
-                `&scope=${JSON.stringify(scopes)}` +
-                `&token_type=bearer`
-            );
+            let url = new URL(<string>req.query.redirect_uri);
+            url.searchParams.set('code', token.code);
+            if (req.query.state) {
+                url.searchParams.set('state', req.query.state.toString());
+            }
+            url.searchParams.set('scope', JSON.stringify(scopes));
+            res.redirect(307, url.href);
         } catch (e) {
             next(e);
         }
 
+    });
+
+    app.get(OAUTH_VALIDATE_URL.pathname, async (req, res, next) => {
+        try {
+            if (!req.header('Authorization')) {
+                throw createHttpError(401, 'must provide token');
+            }
+            let response = await validateToken((<string>req.header('Authorization')).split(' ')[1]);
+            res.send(JSON.stringify(response));
+            res.end();
+        } catch (e) {
+            next(e);
+        }
     });
 
     app.post('/addOrGetUser/:username', async (req, res, next) => {
@@ -267,6 +259,7 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
         }
     });
 
+    //Error handler
     app.use(function (error: Error, req: express.Request, res: express.Response, next: NextFunction) {
         console.log(error);
 
@@ -277,16 +270,21 @@ function setUpMockAuthServer(config: MockServerOptions): Promise<void> {
         if (config.logErrors) {
             console.error(error);
         }
+
+        let statusCode: number;
         if ((error as createHttpError.HttpError).statusCode) {
-            res.status((error as createHttpError.HttpError).statusCode);
+            statusCode = (error as createHttpError.HttpError).statusCode;
         } else {
-            res.status(500);
+            statusCode = 500;
         }
 
+        res.status(statusCode);
+
         res.json({
-            status: 'error',
+            status: statusCode,
             message: error.message
         });
+
         res.end();
     });
 
